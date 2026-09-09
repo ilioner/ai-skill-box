@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -202,6 +203,34 @@ def _merge_description(target: dict[str, Any], source: dict[str, Any]) -> None:
         target["description"] = incoming
 
 
+def merge_graphs(graphs: list[dict[str, Any]]) -> dict[str, Any]:
+    """跨块/跨文件合并已规范化的图谱：实体按 (normalized_name, label) 去重（属性并集、描述取最长），
+    关系按 id 去重并合并 sources。"""
+    entity_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    relation_by_id: dict[str, dict[str, Any]] = {}
+    for graph in graphs:
+        for entity in graph.get("entities") or []:
+            key = (entity.get("normalized_name") or normalize_entity_name(entity.get("text", "")),
+                   entity.get("label") or "Entity")
+            existing = entity_by_key.get(key)
+            if existing is None:
+                entity_by_key[key] = entity
+            else:
+                _merge_attributes(existing, entity)
+                _merge_description(existing, entity)
+        for relation in graph.get("relations") or []:
+            existing = relation_by_id.get(relation["id"])
+            if existing is None:
+                relation_by_id[relation["id"]] = relation
+            else:
+                known_sources = set(existing.get("sources") or [])
+                for source in relation.get("sources") or []:
+                    if source not in known_sources:
+                        existing.setdefault("sources", []).append(source)
+                        known_sources.add(source)
+    return {"entities": list(entity_by_key.values()), "relations": list(relation_by_id.values())}
+
+
 def load_input(path: str | None) -> dict[str, Any]:
     if path is None:
         return json.load(sys.stdin)
@@ -210,8 +239,12 @@ def load_input(path: str | None) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="规范化知识图谱抽取结果")
-    parser.add_argument("--input", help="原始抽取结果 JSON 文件；缺省从 stdin 读取")
+    parser = argparse.ArgumentParser(description="规范化知识图谱抽取结果（可合并多来源）")
+    parser.add_argument("--input", action="append",
+                        help="原始抽取结果 JSON 文件；可多次指定（配合 --merge）。缺省从 stdin 读取单份")
+    parser.add_argument("--merge", action="store_true",
+                        help="合并多份抽取结果：多个 --input 文件（每份一个 raw JSON，source 取文件名或 --source），"
+                             "或 --input 为 JSONL（每行 {\"source\": \"file_id\", \"extraction\": {...}}）")
     parser.add_argument("--output", help="输出 JSON 文件；缺省写到 stdout")
     parser.add_argument("--kb-id", default="default", help="知识库/命名空间 ID，用于生成确定性实体/关系 ID")
     parser.add_argument("--id-length", type=int, default=32, help="ID 截断长度（默认 32）")
@@ -219,8 +252,49 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        raw = load_input(args.input)
-        normalized = normalize_extraction_result(raw, args.kb_id, args.id_length, args.source or None)
+        inputs = args.input or [None]
+        if args.merge:
+            graphs = []
+            for inp in inputs:
+                if inp is None:
+                    print("error: --merge 模式不支持从 stdin 读取，请指定 --input", file=sys.stderr)
+                    return 1
+                if inp.endswith(".jsonl"):
+                    with open(inp, "r", encoding="utf-8") as fh:
+                        for line in fh:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                record = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+                            extraction = record.get("extraction")
+                            if not isinstance(extraction, dict):
+                                continue
+                            source = str(record.get("source") or "").strip() or None
+                            graphs.append(normalize_extraction_result(extraction, args.kb_id, args.id_length, source))
+                else:
+                    raw = load_input(inp)
+                    source = args.source or Path(inp).name or None
+                    graphs.append(normalize_extraction_result(raw, args.kb_id, args.id_length, source))
+            merged = merge_graphs(graphs)
+            normalized: dict[str, Any] = {
+                **merged,
+                "metadata": {
+                    "schema_version": 1,
+                    "kb_id": args.kb_id,
+                    "merged_sources": len(graphs),
+                    "entity_count": len(merged["entities"]),
+                    "relation_count": len(merged["relations"]),
+                },
+            }
+        else:
+            if len(inputs) > 1:
+                print("error: 多个 --input 需要 --merge", file=sys.stderr)
+                return 1
+            raw = load_input(inputs[0])
+            normalized = normalize_extraction_result(raw, args.kb_id, args.id_length, args.source or None)
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
