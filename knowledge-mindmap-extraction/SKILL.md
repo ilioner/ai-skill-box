@@ -1,6 +1,6 @@
 ---
 name: knowledge-mindmap-extraction
-description: 把文件/文档清单组织成层级知识导图 JSON 树：全量生成 + 增量维护（diff 检测、删除剪枝、新增整合），带强制运行门禁（--mode 必填、--apply 才写文件）。全程由 Agent 直接生成/整合树（零配置，无需 api-key），脚本只做校验/写文件/追踪。用于知识库导图、目录概览、文件分类树、学习资料组织、知识结构可视化前的数据准备。触发场景：生成思维导图、知识导图、文件分类树、目录概览、知识库结构整理、导图增量更新。
+description: 把文件/文档清单组织成层级知识导图 JSON 树：全量生成 + 增量维护（diff 检测、删除剪枝、新增整合），带强制运行门禁（--mode 必填、--apply 才写文件）；并可一键渲染成交互式 ECharts 思维导图 HTML（零 CDN 内联、折叠展开、搜索定位）。全程由 Agent 直接生成/整合树（零配置，无需 api-key），脚本只做校验/写文件/追踪/渲染等确定性工作。用于知识库导图、目录概览、文件分类树、学习资料组织、知识结构可视化。触发场景：生成思维导图、知识导图、文件分类树、目录概览、知识库结构整理、导图增量更新、渲染思维导图、导图可视化、生成导图网页、mindmap.json 转 HTML。
 ---
 
 # 知识导图数据抽取
@@ -28,6 +28,8 @@ description: 把文件/文档清单组织成层级知识导图 JSON 树：全量
 3. 产出完整树 tree.json（{content, children}）
 4. python3 scripts/generate_mindmap.py --mode <full|incremental> \
        --tree-json tree.json --files-dir docs/ --output mindmap.json --apply
+5. （可选）渲染成交互式 HTML：
+   python3 scripts/render_mindmap.py --mindmap mindmap.json --output mindmap.html
 ```
 
 ## 工作流
@@ -46,7 +48,23 @@ description: 把文件/文档清单组织成层级知识导图 JSON 树：全量
 
 - `scripts/generate_mindmap.py` — 全量生成 + 增量更新（Agent 直抽版：`--tree-json` 必填；门禁：`--mode` 必填 / `--apply` 才写文件）。
 - `scripts/mindmap_tree.py` — 树工具：`validate`（结构 + 叶子唯一性）、`prune`（删除）、`diff`（变更检测）、`load_files`（清单读取），可独立使用。
+- `scripts/render_mindmap.py` — 渲染器：`mindmap.json` → 单文件交互式 HTML（ECharts tree，内联 `assets/echarts.min.js`，零 CDN）。支持折叠展开、搜索定位祖先路径、正交/径向布局切换。
+
+## 渲染成 HTML
+
+```bash
+python3 scripts/render_mindmap.py --mindmap mindmap.json --output mindmap.html \
+    --title "知识导图" --initial-depth 2
+```
+
+常用参数：`--layout orthogonal|radial`（默认正交 LR，中文标签保持水平可读）、`--initial-depth N`（初始展开层数，默认 2）、`--echarts-js PATH`（默认自动探测 skill `assets/`）、`--colors '#hex1,#hex2'`（自定义分支配色）。
+
+交互：工具栏「展开全部 / 折叠全部 / 切换布局 / 适应屏幕」；搜索框输入关键词展开命中节点的祖先路径，清空（Escape）恢复初始展开层级。
+
+渲染契约、字段映射与已踩过的坑见 `references/rendering.md`——**修改产物 HTML 的行为必须改回本渲染器**，否则重新生成即丢失。
 
 ## 树格式与调优
 
-树格式、全量/增量模板与硬性约束见 `references/prompts.md`（Agent 直抽时按其中模板执行）。渲染端：markmap（SVG）、ECharts tree/sunburst 均可直接消费该 JSON。
+树格式、全量/增量模板与硬性约束见 `references/prompts.md`（Agent 直抽时按其中模板执行）。
+
+渲染端字段差异（实测）：本 skill 的树用 `content` 字段；**ECharts tree 要求 `name` 字段且根节点须包成数组** `data: [root]`——`render_mindmap.py` 内部已做转换，直接把 `mindmap.json` 喂给它即可。markmap（SVG）可直接消费 `content` 格式。

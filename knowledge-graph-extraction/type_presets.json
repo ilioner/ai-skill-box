@@ -4,41 +4,166 @@
   "presets": {
     "default": {
       "description": "通用兜底：未匹配任何预设时使用",
-      "entity_types": ["Entity"],
-      "relation_types": ["RELATED_TO"]
+      "entity_types": [
+        "Entity"
+      ],
+      "relation_types": [
+        "RELATED_TO"
+      ]
     },
     "k12_base": {
       "level": "k12",
       "description": "基础教育学段基类：知识点/考点导向",
-      "entity_types": ["知识点", "概念", "定义", "公式", "题型", "考点", "课文", "作者", "历史事件", "实验"],
-      "relation_types": ["属于", "考查", "推导", "出自", "举例"]
+      "entity_types": [
+        "知识点",
+        "概念",
+        "定义",
+        "公式",
+        "题型",
+        "考点",
+        "课文",
+        "作者",
+        "历史事件",
+        "实验"
+      ],
+      "relation_types": [
+        "属于",
+        "考查",
+        "推导",
+        "出自",
+        "举例"
+      ]
     },
     "undergrad_base": {
       "level": "undergrad",
       "description": "本科学段基类：理论/原理导向",
-      "entity_types": ["理论", "原理", "定理", "模型", "概念", "术语", "学者", "文献", "实验"],
-      "relation_types": ["提出", "证明", "应用", "关联", "定义"]
+      "entity_types": [
+        "理论",
+        "原理",
+        "定理",
+        "模型",
+        "概念",
+        "术语",
+        "学者",
+        "文献",
+        "实验"
+      ],
+      "relation_types": [
+        "提出",
+        "证明",
+        "应用",
+        "关联",
+        "定义"
+      ]
     },
     "vocational_base": {
       "level": "vocational",
       "description": "职业学段基类：岗位/流程/规范导向",
-      "entity_types": ["岗位", "设备", "工具", "流程", "操作步骤", "规范", "安全标准", "物料"],
-      "relation_types": ["操作", "规范", "上岗", "处置", "包含"]
+      "entity_types": [
+        "岗位",
+        "设备",
+        "工具",
+        "流程",
+        "操作步骤",
+        "规范",
+        "安全标准",
+        "物料"
+      ],
+      "relation_types": [
+        "操作",
+        "规范",
+        "上岗",
+        "处置",
+        "包含"
+      ]
     },
     "science_base": {
       "description": "理科领域基类",
-      "entity_types": ["定律", "公理", "命题", "物理量", "化学物质", "反应", "生物体", "结构"],
-      "relation_types": ["推导", "验证", "适用"]
+      "entity_types": [
+        "定律",
+        "公理",
+        "命题",
+        "物理量",
+        "化学物质",
+        "反应",
+        "生物体",
+        "结构"
+      ],
+      "relation_types": [
+        "推导",
+        "验证",
+        "适用"
+      ]
     },
     "humanities_base": {
       "description": "文科领域基类",
-      "entity_types": ["人物", "事件", "作品", "流派", "时期", "制度", "思想"],
-      "relation_types": ["提出", "属于", "影响", "发生于"]
+      "entity_types": [
+        "人物",
+        "事件",
+        "作品",
+        "流派",
+        "时期",
+        "制度",
+        "思想"
+      ],
+      "relation_types": [
+        "提出",
+        "属于",
+        "影响",
+        "发生于"
+      ]
     },
     "professional_base": {
       "description": "职业实务领域基类",
-      "entity_types": ["设备", "流程", "规范", "岗位", "工具", "材料"],
-      "relation_types": ["操作", "规范", "使用", "负责"]
+      "entity_types": [
+        "设备",
+        "流程",
+        "规范",
+        "岗位",
+        "工具",
+        "材料"
+      ],
+      "relation_types": [
+        "操作",
+        "规范",
+        "使用",
+        "负责"
+      ]
+    },
+    "college_mental_health": {
+      "extends": [
+        "undergrad_base",
+        "humanities_base"
+      ],
+      "level": "vocational",
+      "doc_type": "教材",
+      "description": "课程预设：大学生心理健康（已确认）",
+      "entity_types": [
+        "心理概念",
+        "心理理论",
+        "心理学人物",
+        "心理问题",
+        "心理障碍",
+        "症状表现",
+        "情绪",
+        "影响因素",
+        "调适方法",
+        "能力素养",
+        "评估标准",
+        "应用情境",
+        "案例"
+      ],
+      "relation_types": [
+        "包含",
+        "属于",
+        "导致",
+        "表现为",
+        "影响",
+        "调适",
+        "提出",
+        "培养",
+        "应用于"
+      ]
     }
   },
   "routes": []
