@@ -29,9 +29,50 @@ def fr_layout(node_ids, edges, iters=300, seed=42):
     try:
         import numpy as np
     except ImportError:
-        import math
-        return {nid: (round(500 * math.cos(2 * math.pi * i / n), 1),
-                      round(500 * math.sin(2 * math.pi * i / n), 1)) for i, nid in enumerate(node_ids)}
+        # 纯标准库回退：不能退化成圆形，否则无论图结构如何都会得到圆环。
+        # 使用确定性的 Fruchterman-Reingold 迭代，保证没有 numpy 时仍保留拓扑聚类。
+        import math, random
+        rng = random.Random(seed)
+        L = 1400.0
+        pos = {nid: [rng.uniform(-L / 2, L / 2), rng.uniform(-L / 2, L / 2)]
+               for nid in node_ids}
+        k = 2.2 * math.sqrt((L * L) / n)
+        valid_edges = [(a, b) for a, b in edges if a in pos and b in pos]
+        t = L * 0.1
+        dt = t / (iters + 1)
+        for _ in range(iters):
+            disp = {nid: [0.0, 0.0] for nid in node_ids}
+            for i, a in enumerate(node_ids):
+                ax, ay = pos[a]
+                for b in node_ids[i + 1:]:
+                    dx, dy = ax - pos[b][0], ay - pos[b][1]
+                    dist = math.hypot(dx, dy) + 1e-9
+                    if dist <= 2.5 * k:
+                        f = (k * k) / dist
+                        vx, vy = dx / dist * f, dy / dist * f
+                        disp[a][0] += vx; disp[a][1] += vy
+                        disp[b][0] -= vx; disp[b][1] -= vy
+            for a, b in valid_edges:
+                dx, dy = pos[a][0] - pos[b][0], pos[a][1] - pos[b][1]
+                dist = math.hypot(dx, dy) + 1e-9
+                f = min((dist * dist) / k, 6.0 * k)
+                vx, vy = dx / dist * f, dy / dist * f
+                disp[a][0] -= vx; disp[a][1] -= vy
+                disp[b][0] += vx; disp[b][1] += vy
+            for nid in node_ids:
+                x, y = pos[nid]
+                disp[nid][0] -= x * 0.012; disp[nid][1] -= y * 0.012
+                d = math.hypot(*disp[nid]) + 1e-9
+                step = min(d, t)
+                pos[nid][0] += disp[nid][0] / d * step
+                pos[nid][1] += disp[nid][1] / d * step
+            t -= dt
+        cx = sum(p[0] for p in pos.values()) / n
+        cy = sum(p[1] for p in pos.values()) / n
+        for p in pos.values(): p[0] -= cx; p[1] -= cy
+        scale = max(max(abs(p[0]) for p in pos.values()), max(abs(p[1]) for p in pos.values()), 1e-9)
+        return {nid: (round(p[0] / scale * 900.0, 1), round(p[1] / scale * 900.0, 1))
+                for nid, p in pos.items()}
     import numpy as np
     idx = {nid: i for i, nid in enumerate(node_ids)}
     rng = np.random.RandomState(seed)
@@ -525,7 +566,7 @@ var lg=document.getElementById('legend');
 document.getElementById('btnReplay').onclick=beginReveal;
 document.getElementById('q').addEventListener('keydown',function(e){
   if(e.key!=='Enter') return; var q=e.target.value.trim(); if(!q) return;
-  var hit=DATA.nodes.find(function(n){return n.name.indexOf(q)>=0;});
+  var hit=DATA.nodes.find(function(n){return n.name.indexOf(q)>=0 || (n.label_text||'').indexOf(q)>=0;});
   if(hit){ focusById(hit.id); }
 });
 document.getElementById('reset').addEventListener('click',function(){ updateFocus(null); document.getElementById('q').value=''; fitView(); });
