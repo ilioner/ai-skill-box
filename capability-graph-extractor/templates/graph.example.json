@@ -1,0 +1,93 @@
+{
+  "_notice": "本文件仅展示字段结构，不是任何课程的能力目录，也不可作为课程标准直接采用。",
+  "metadata": {
+    "course_name": "示例课程",
+    "course_type": null,
+    "course_paradigm": "公共基础课示例",
+    "graph_status": "draft",
+    "extraction_mode": "mixed",
+    "created_at": "2026-01-01",
+    "updated_at": null,
+    "limitations": ["示例仅演示证据和关系字段"]
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "source_type": "lesson_material",
+      "title": "示例教学材料",
+      "origin": "user_material",
+      "path_or_url": "materials/example.txt",
+      "issuer": null,
+      "version_or_date": null,
+      "scope": "示例段落",
+      "read_status": "complete",
+      "authority_notes": "仅为教学实施材料",
+      "applicability_notes": "用于演示字段"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "CAP-001",
+      "type": "capability",
+      "name": "能在给定情境中选择并说明一种适用策略",
+      "description": "学习者分析给定情境，从材料提供的策略中选择一种，并说明选择理由。",
+      "level": null,
+      "parent_id": null,
+      "evidence": [
+        {
+          "evidence_kind": "synthesized",
+          "source_id": "SRC-001",
+          "location": "第2段",
+          "quote": "分析案例并选择合适的方法，说明理由。",
+          "reason": "对原文任务要求作保守语义归纳"
+        }
+      ],
+      "review_status": "unreviewed",
+      "review_notes": null,
+      "safety_notes": null,
+      "tags": []
+    },
+    {
+      "id": "KNW-001",
+      "type": "knowledge",
+      "name": "策略的适用条件",
+      "description": "材料中列出的不同策略及其适用条件。",
+      "level": null,
+      "parent_id": null,
+      "evidence": [
+        {
+          "evidence_kind": "quoted",
+          "source_id": "SRC-001",
+          "location": "第1段",
+          "quote": "不同策略适用于不同情境。",
+          "reason": null
+        }
+      ],
+      "review_status": "unreviewed",
+      "review_notes": null,
+      "safety_notes": null,
+      "tags": []
+    }
+  ],
+  "relations": [
+    {
+      "id": "REL-001",
+      "from": "CAP-001",
+      "to": "KNW-001",
+      "type": "requires_knowledge",
+      "description": "选择策略需要理解其适用条件。",
+      "evidence": [
+        {
+          "evidence_kind": "inferred",
+          "source_id": "SRC-001",
+          "location": "第1-2段",
+          "quote": null,
+          "reason": "任务要求选择策略，而前文提供策略适用条件"
+        }
+      ],
+      "review_status": "unreviewed",
+      "review_notes": null
+    }
+  ],
+  "review_issues": []
+}

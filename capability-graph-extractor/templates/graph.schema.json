@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/capability-graph.schema.json",
+  "title": "Capability Graph",
+  "type": "object",
+  "required": ["metadata", "sources", "nodes", "relations"],
+  "additionalProperties": false,
+  "properties": {
+    "_notice": {"type": "string"},
+    "metadata": {
+      "type": "object",
+      "required": ["course_name", "graph_status", "extraction_mode"],
+      "properties": {
+        "course_name": {"type": "string", "minLength": 1},
+        "course_type": {"type": ["string", "null"]},
+        "course_paradigm": {"type": ["string", "null"]},
+        "graph_status": {"enum": ["framework", "draft", "partial", "reviewed", "published"]},
+        "extraction_mode": {"enum": ["framework_design", "reverse_inference", "standard_driven", "mixed", "full_material"]},
+        "created_at": {"type": ["string", "null"]},
+        "updated_at": {"type": ["string", "null"]},
+        "limitations": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source_type", "title", "origin", "read_status"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^SRC-[A-Z0-9_-]+$"},
+          "source_type": {"type": "string"},
+          "title": {"type": "string", "minLength": 1},
+          "origin": {"enum": ["user_material", "external_standard", "method_reference"]},
+          "path_or_url": {"type": ["string", "null"]},
+          "issuer": {"type": ["string", "null"]},
+          "version_or_date": {"type": ["string", "null"]},
+          "scope": {"type": ["string", "null"]},
+          "read_status": {"enum": ["complete", "partial", "unreadable", "not_read"]},
+          "authority_notes": {"type": ["string", "null"]},
+          "applicability_notes": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "relations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/relation"}
+    },
+    "review_issues": {
+      "type": "array",
+      "items": {"type": "object"}
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_kind", "source_id"],
+      "properties": {
+        "evidence_kind": {"enum": ["quoted", "synthesized", "inferred", "proposed"]},
+        "source_id": {"type": ["string", "null"]},
+        "location": {"type": ["string", "null"]},
+        "quote": {"type": ["string", "null"]},
+        "reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "name", "description", "evidence", "review_status"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(CAP|KNW|QUA|QUE|TSK|RES|ASM|CTX|STD)-[A-Z0-9_-]+$"},
+        "type": {"enum": ["capability", "knowledge", "quality", "question", "task", "resource", "assessment", "context", "standard"]},
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "level": {"type": ["string", "null"]},
+        "parent_id": {"type": ["string", "null"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}},
+        "review_status": {"enum": ["unreviewed", "accepted", "rejected", "revised"]},
+        "review_notes": {"type": ["string", "null"]},
+        "safety_notes": {"type": ["string", "null"]},
+        "tags": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "relation": {
+      "type": "object",
+      "required": ["id", "from", "to", "type", "evidence", "review_status"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^REL-[A-Z0-9_-]+$"},
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "type": {"enum": ["requires_knowledge", "depends_on", "part_of", "develops_quality", "driven_by_question", "practiced_in", "supported_by_resource", "assessed_by", "derived_from", "parallel_to", "progresses_to", "includes"]},
+        "description": {"type": ["string", "null"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}},
+        "review_status": {"enum": ["unreviewed", "accepted", "rejected", "revised"]},
+        "review_notes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  }
+}

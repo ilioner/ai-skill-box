@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "course_name": "虚构示例课程",
+    "course_type": null,
+    "course_paradigm": null,
+    "graph_status": "draft",
+    "extraction_mode": "reverse_inference",
+    "created_at": null,
+    "updated_at": null,
+    "limitations": ["无正式课程标准，仅演示脚本流程"]
+  },
+  "sources": [
+    {
+      "id": "SRC-DEMO",
+      "source_type": "lesson_material",
+      "title": "虚构任务材料",
+      "origin": "user_material",
+      "path_or_url": "demo.txt",
+      "issuer": null,
+      "version_or_date": null,
+      "scope": "全文",
+      "read_status": "complete",
+      "authority_notes": "不属于正式标准",
+      "applicability_notes": "仅用于脚本测试"
+    }
+  ],
+  "nodes": [
+    {
+      "type": "capability",
+      "name": "能比较两个方案并说明选择理由",
+      "description": "学习者依据材料给出的条件比较两个方案，并说明选择理由。",
+      "level": null,
+      "parent_id": null,
+      "evidence": [{
+        "evidence_kind": "synthesized",
+        "source_id": "SRC-DEMO",
+        "location": "任务1",
+        "quote": "比较方案甲与方案乙，选择一个并说明理由。",
+        "reason": "对任务要求作保守归纳"
+      }],
+      "review_status": "unreviewed",
+      "review_notes": null,
+      "safety_notes": null,
+      "tags": []
+    },
+    {
+      "type": "knowledge",
+      "name": "方案比较条件",
+      "description": "材料给出的成本、时间和约束条件。",
+      "level": null,
+      "parent_id": null,
+      "evidence": [{
+        "evidence_kind": "quoted",
+        "source_id": "SRC-DEMO",
+        "location": "任务1",
+        "quote": "比较时考虑成本、时间和限制条件。",
+        "reason": null
+      }],
+      "review_status": "unreviewed",
+      "review_notes": null,
+      "safety_notes": null,
+      "tags": []
+    }
+  ],
+  "relations": [],
+  "review_issues": [{
+    "type": "missing_relation",
+    "description": "分配节点 ID 后，可由宿主模型补充能力与知识的关系。"
+  }]
+}
