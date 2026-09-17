@@ -61,7 +61,7 @@ HTML_TMPL = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>__TITLE__</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
@@ -132,6 +132,72 @@ HTML_TMPL = r"""<!DOCTYPE html>
   .setrow:last-child{border-bottom:none;} .setrow:hover{background:#152238;color:#fff;}
   .setrow .tag{font-size:10px;padding:1px 7px;border-radius:10px;color:#0b1020;font-weight:700;flex:none;}
   .click{cursor:pointer;color:#93c5fd;} .click:hover{color:#fff;}
+/* Mobile adaptation: original desktop theme unchanged. */
+#mobile-tools{display:none}
+@media(max-width:1000px){
+ body{--panel-bottom:70px;--content-top:130px}
+ header{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));padding:8px 10px}
+ header h1{padding-right:102px;overflow-wrap:anywhere}
+ header .ctl{position:absolute;right:8px;top:7px;margin:0}
+ header .ctl button{min-height:44px}
+ #search{top:76px;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;gap:6px}
+ #search input{width:auto;min-width:0;flex:1;font-size:16px;min-height:44px}
+ #reset{margin:0;min-height:44px}
+ #mobile-tools{display:flex;position:fixed;z-index:20;bottom:0;left:0;right:0;gap:8px;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:rgba(15,23,42,.94);border-top:1px solid #1f2937}
+ #mobile-tools button{flex:1;min-height:44px;border:1px solid #334155;border-radius:7px;background:#0f172a;color:#cbd5e1;font:inherit;font-size:13px;cursor:pointer}
+ #mobile-tools button[aria-expanded="true"]{background:#1e293b;border-color:#93c5fd}
+ #side,#pathnav,#legend{display:none;top:auto;bottom:var(--panel-bottom);left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;max-width:none;height:auto;max-height:44vh;max-height:min(44dvh,calc(100dvh - var(--content-top) - var(--panel-bottom) - 8px));overflow:auto;overscroll-behavior:contain;z-index:15;overflow-wrap:anywhere}
+ #side{padding:14px;border:1px solid #1f2937;border-radius:10px}
+ #side.mobile-open,#pathnav.mobile-open{display:block}
+ #legend.mobile-open{display:flex}
+ #pathnav .uhead,#pathnav .lesson,#pathnav .pnhead,.setrow{min-height:44px;display:flex;align-items:center}
+ #legend .item{min-height:32px}
+ .rel{flex-wrap:wrap}.kv .v{min-width:0;overflow-wrap:anywhere}
+ #graph{touch-action:none}
+}
+
+/* Mobile drawers: left path, right details, persistent bottom legend. */
+#mobile-backdrop{display:none}
+@media(max-width:1000px){
+ #side,#pathnav{display:block;top:var(--content-top);bottom:calc(var(--panel-bottom) + 58px);width:min(340px,calc(100vw - 40px));max-height:none;height:auto;visibility:hidden;pointer-events:none;transition:transform .22s ease,visibility .22s;z-index:18}
+ #pathnav{left:0;right:auto;transform:translateX(-105%);border-radius:0 10px 10px 0}
+ #side{left:auto;right:0;transform:translateX(105%);border-radius:10px 0 0 10px}
+ #side.mobile-open,#pathnav.mobile-open{visibility:visible;pointer-events:auto;transform:translateX(0)}
+ #legend{display:flex;top:auto;bottom:var(--panel-bottom);left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));max-height:50px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:6px 10px;gap:12px;z-index:19}
+ #legend .item{flex:none;white-space:nowrap;min-height:32px}
+ #mobile-backdrop.visible{display:block;position:fixed;top:var(--content-top);bottom:calc(var(--panel-bottom) + 58px);left:0;right:0;z-index:16;border:0;background:rgba(0,0,0,.25);padding:0}
+}
+@media(prefers-reduced-motion:reduce){#side,#pathnav{transition:none}}
+
+/* Compact mobile search and directional drawer controls. */
+.mobile-close{display:none}
+@media(max-width:1000px){
+ #search{border:1px solid #334155;border-radius:10px;background:#0f172a;align-items:center;gap:0;padding:0 4px 0 12px}
+ #search::before{content:'';width:12px;height:12px;flex:none;border:1.5px solid #94a3b8;border-radius:50%;margin-right:6px}
+ #search input{border:0;background:transparent;border-radius:0;padding:10px 8px;outline:none}
+ #search:focus-within{border-color:#93c5fd}
+ #reset{border:0;border-left:1px solid #334155;border-radius:0;background:transparent;min-width:48px;padding:0 8px;color:#94a3b8}
+ #mobile-tools{top:var(--tools-top);bottom:auto;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));padding:0;border:0;background:none;justify-content:space-between;pointer-events:none}
+ #mobile-tools button{flex:none;min-width:76px;min-height:44px;padding:0 12px;pointer-events:auto;background:rgba(15,23,42,.94)}
+ #mobile-tools button:first-child::before{content:'☷';margin-right:6px;color:#94a3b8}
+ #mobile-tools button:last-child::after{content:' ⓘ';margin-left:4px;color:#94a3b8}
+ #legend{bottom:max(8px,env(safe-area-inset-bottom))}
+ #side,#pathnav,#mobile-backdrop.visible{bottom:calc(max(8px,env(safe-area-inset-bottom)) + 58px)}
+ .mobile-close{display:block;position:sticky;top:0;float:right;z-index:2;width:44px;height:44px;border:1px solid #334155;border-radius:7px;background:#0f172a;color:#cbd5e1;font-size:22px;cursor:pointer}
+}
+
+/* Single-row mobile toolbar. */
+@media(max-width:1000px){
+ #mobile-tools{top:var(--tools-top);height:46px;align-items:center}
+ #mobile-tools button{min-width:48px;width:48px;padding:0;min-height:44px}
+ #mobile-tools button:first-child::before,#mobile-tools button:last-child::after{content:none}
+ #search{left:calc(max(8px,env(safe-area-inset-left)) + 54px);right:calc(max(8px,env(safe-area-inset-right)) + 54px);padding:0 2px 0 6px}
+ #search::before{content:none}
+ #search input{padding:10px 6px}
+ #reset{font-size:20px;min-width:44px;width:44px;padding:0}
+ body.mobile-searching #search{left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right))}
+ body.mobile-searching #mobile-tools{visibility:hidden}
+}
 </style>
 </head>
 <body>
@@ -419,6 +485,47 @@ document.getElementById('q').addEventListener('keydown',function(e){
 });
 document.getElementById('reset').addEventListener('click',function(){ updateFocus(null); document.getElementById('q').value=''; });
 window.addEventListener('resize',function(){ Graph.width(window.innerWidth).height(window.innerHeight); });
+</script>
+<script>
+(function(){
+ var mq=window.matchMedia('(max-width:1000px)');
+ var bar=document.createElement('nav');bar.id='mobile-tools';bar.setAttribute('aria-label','图谱面板');
+ var panels=[['pathnav','路径'],['side','详情']];
+ panels.forEach(function(pair){
+  var b=document.createElement('button');b.type='button';b.textContent=pair[1];
+  b.setAttribute('aria-label',pair[0]==='pathnav'?'学习路径':'节点详情');b.setAttribute('aria-controls',pair[0]);b.setAttribute('aria-expanded','false');
+  b.onclick=function(){openPanel(document.getElementById(pair[0]).classList.contains('mobile-open')?null:pair[0]);};bar.appendChild(b);
+ });document.body.appendChild(bar);
+ var backdrop=document.createElement('button');backdrop.id='mobile-backdrop';backdrop.type='button';backdrop.setAttribute('aria-label','关闭抽屉');backdrop.onclick=function(){openPanel(null);};document.body.appendChild(backdrop);
+ function openPanel(id){
+  backdrop.classList.toggle('visible',!!id);
+  panels.forEach(function(p,i){document.getElementById(p[0]).classList.toggle('mobile-open',p[0]===id);bar.children[i].setAttribute('aria-expanded',String(p[0]===id));});
+  if(id==='pathnav')document.getElementById('pnbody').style.display='block';
+ }
+ panels.forEach(function(p){var close=document.createElement('button');close.type='button';close.className='mobile-close';close.textContent='×';close.setAttribute('aria-label','关闭抽屉');close.onclick=function(){openPanel(null);};document.getElementById(p[0]).prepend(close);});
+ var originalPlaceholder=document.getElementById('q').placeholder;
+ var reset=document.getElementById('reset');var resetText=reset.textContent;reset.setAttribute('aria-label','重置图谱');reset.title='重置图谱';
+ function layout(){
+  var search=document.getElementById('search');
+  reset.textContent=mq.matches?'↺':resetText;
+  document.getElementById('q').placeholder=mq.matches?'搜索节点…':originalPlaceholder;
+  if(!mq.matches){search.style.top='';openPanel(null);return;}
+  search.style.top=(document.querySelector('header').getBoundingClientRect().bottom+8)+'px';
+  document.body.style.setProperty('--tools-top',search.style.top);
+  document.body.style.setProperty('--content-top',(search.getBoundingClientRect().bottom+8)+'px');
+  document.body.style.setProperty('--panel-bottom',(bar.getBoundingClientRect().height+8)+'px');
+ }
+ if(window.ResizeObserver){var ro=new ResizeObserver(layout);ro.observe(document.querySelector('header'));ro.observe(bar);}
+ window.addEventListener('resize',layout);
+ new MutationObserver(function(){if(mq.matches)openPanel('side');}).observe(document.getElementById('detail'),{childList:true,subtree:true});
+ var q=document.getElementById('q');q.setAttribute('aria-label','搜索节点');q.setAttribute('enterkeyhint','search');
+ q.addEventListener('focus',function(){if(mq.matches)document.body.classList.add('mobile-searching');});
+ q.addEventListener('blur',function(){document.body.classList.remove('mobile-searching');});
+ q.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key==='Escape')&&mq.matches)q.blur();});
+ document.getElementById('reset').addEventListener('click',function(){openPanel(null);});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape')openPanel(null);});
+ layout();
+})();
 </script>
 </body>
 </html>
