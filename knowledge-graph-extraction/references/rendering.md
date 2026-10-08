@@ -2,6 +2,15 @@
 
 `graph.json` → 交互式 HTML。两个渲染器零项目耦合，拷到任意项目的输出目录即可用。
 
+**默认数据与页面分离**：两个页面均通过 `fetch` 读取外部图谱与学习路径 JSON，HTML 中不保存实体、关系、详情或导览的数据副本。更新 JSON 后刷新即可，页面不自动轮询。仅用户明确要求单文件内嵌数据时使用 `--embed-data`；`--runtime-load` 保留为默认模式的显式选项，两者互斥。
+
+### 数据地址与访问方式
+
+- `--graph` 和 `--path-json` 是生成时的本地文件路径；生成器按它们与 `--output` 的相对位置生成 URL，不硬编码 `graph.json`，不把本机绝对路径写入页面。支持中文、空格和特殊字符文件名。
+- 未指定 `--path-json` 时，运行时加载图谱同目录的 `learning_path.json`；仅该默认文件返回 404 时允许空导览。显式指定的学习路径缺失、JSON 解析失败或图谱加载失败均显示错误，不用内嵌旧数据兜底。
+- 用 HTTP/HTTPS 打开，不能直接双击 `file://`。将 HTML 与 JSON 按原相对目录一起部署到服务中；在二者的公共目录运行 `python3 -m http.server 8000 --bind 127.0.0.1`，访问 `http://127.0.0.1:8000/` 下的页面。
+- 2D 默认内联的是 **ECharts 运行库**，不是课程图谱数据；可在无外网环境中通过本地 HTTP 服务使用。3D 还需访问 CDN。
+
 ---
 
 ## 一、渲染器
@@ -10,9 +19,9 @@
 
 | 项 | 说明 |
 |---|---|
-| 产物 | 单文件 HTML，**默认内联 ECharts → 零 CDN 依赖，离线可开** |
-| 布局 | Python 端 Fruchterman-Reingold 预计算坐标，ECharts `layout:'none'` 钉住 |
-| 依赖 | numpy 为**软依赖**，缺失时退化为圆形布局（图仍可用，只是不好看） |
+| 产物 | HTML 与 JSON 分离，默认内联 ECharts 运行库，无 CDN 依赖，须通过 HTTP 打开 |
+| 布局 | 默认浏览器读取图谱后计算 Fruchterman-Reingold 坐标，ECharts `layout:'none'` 钉住 |
+| 依赖 | 默认模式不需要 NumPy；仅 `--embed-data` 的 Python 预计算使用 NumPy 软依赖，缺失时退化为圆形布局 |
 | 交互 | 点击节点聚焦高亮（双向邻边）、左侧学习路径导览下钻、搜索、tooltip |
 
 ```bash
@@ -20,7 +29,7 @@ python3 render_graph.py \
   --graph graph.json \               # 必需
   --output graph.html \              # 必需
   --title "大学生心理健康知识图谱" \   # 默认 "知识图谱"
-  --path-json learning_path.json \   # 可选，左侧导览面板
+  --path-json learning_path.json \   # 可省：缺省自动探测 graph 同目录 learning_path.json
   --echarts-js echarts.min.js \      # 可选，留空自动探测
   --cdn \                            # 可选，强制走 CDN 不内联
   --rel-colors '{"包含":"#60a5fa"}'   # 可选，关系配色覆盖/扩充
@@ -38,17 +47,17 @@ python3 render_graph.py \
 
 | 项 | 说明 |
 |---|---|
-| 产物 | HTML，**运行时依赖 CDN，离线打不开** |
+| 产物 | HTML 与 JSON 分离，须通过 HTTP 打开，运行库依赖 CDN |
 | 布局 | 不预计算，浏览器端力导向实时模拟 |
 | 交互 | 同 2D（聚焦、导览、搜索、tooltip） |
 
 ```bash
 python3 render_graph_3d.py \
   --graph graph.json --output graph_3d.html \
-  --title "知识图谱 3D" --path-json learning_path.json
+  --title "知识图谱 3D" --path-json learning_path.json   # --path-json 同样可省，自动探测同目录
 ```
 
-参数只有这 4 个——**没有** `--rel-colors` / `--cdn` / `--echarts-js`。运行时拉取：
+除上述 4 个参数外，还支持互斥的 `--runtime-load`（默认）和 `--embed-data`；**没有** `--rel-colors` / `--cdn` / `--echarts-js`。运行时拉取：
 `three@0.157.0`、`three-spritetext@1.8.2`、`3d-force-graph@1.73.4`（均来自 jsdelivr）。
 
 ---
@@ -85,9 +94,9 @@ python3 render_graph_3d.py \
 }
 ```
 
-**来源**：`raws.jsonl`（每行一次 LLM 抽取）经 `normalize_graph.py --merge` 去重合并生成。
+**来源**：`raws.jsonl`（每行一次 LLM 抽取）经 `normalize_graph.py --merge` 去重合并生成基础图谱；教材/课程再用 `enrich_graph_codes.py` 补齐最终 `graph.json`，完整扩展字段契约见 `references/entity-codes.md`。实体额外包含 `code/book_code/chapter_no/section_no/knowledge_no/location_codes`，元数据额外包含 `entity_code_scheme`。2D/3D 渲染器已读取 `code` 在详情面板展示；归属下钻仍使用 `attributes` 中的 `unitId/lessonId`，不能用 `location_codes` 替换原属性。
 
-### `learning_path.json`（可选）
+### `learning_path.json`（默认生成）
 
 **顶层是数组**，不是对象：
 
@@ -104,9 +113,11 @@ python3 render_graph_3d.py \
 ]
 ```
 
+**来源（默认生成，纯确定性）**：`build_learning_path.py` 从源文件产出 —— 用 `--source-dir <源目录>` 递归扫 md，或 `--raws raws.jsonl` 读每条记录的 `source` 字段；每个 `unitId` 归一组、`lessonId` 去重，`unitId`/`lessonId` 取 frontmatter（或 `<textbookId>_<unitId>_<lessonId>.md` 文件名），标题取首个 H1（单元）/首个 H2（课时）。`render_graph.py` / `render_graph_3d.py` **缺省自动探测 graph 同目录的 `learning_path.json`**，因此导览面板默认就填充，不必手传 `--path-json`。
+
 **联动机制**（关键）：面板拿 `unitId`/`lessonId` 去匹配**实体 `attributes` 里同名 label 的 `text`**。
 点击单元 → 筛出所有带该 `unitId` 属性的节点 → 批量聚焦。
-所以：**实体没带 `unitId`/`lessonId` 属性时，面板能显示但点了选不中任何节点**。
+所以：**实体必须带 `unitId`/`lessonId` 属**（normalize 默认按 source 回填），否则面板能显示但点了选不中任何节点。
 文件缺失时图谱正常渲染，只是没有左侧导览。
 
 ---
@@ -183,6 +194,9 @@ palette = ['#60a5fa','#fbbf24','#34d399','#f87171','#22d3ee','#c084fc',
 **3D 图离线打不开？**
 设计如此，运行时依赖 CDN。要离线得自行下载三个库并把脚本里的 CDN URL 改成本地路径。
 
+**2D 直接双击提示无法加载 JSON？**
+默认分离模式受浏览器 `file://` 限制，必须通过 HTTP 服务读取外部 JSON。启动本地服务即可，不要为绕过该限制擅自改回内嵌模式。
+
 **怎么改节点颜色？**
 改脚本里的 `palette` 数组。目前没做成命令行参数——只有关系配色（`--rel-colors`）参数化了。
 
@@ -195,7 +209,7 @@ palette = ['#60a5fa','#fbbf24','#34d399','#f87171','#22d3ee','#c084fc',
 
 1. **脚本零项目耦合** — 参数通用化，拷到任意项目直接跑，不改代码
 2. **配色可覆盖** — 内置合理默认，项目特化经命令行注入
-3. **2D 离线优先** — 内联 ECharts 是默认行为，不是可选项
+3. **数据分离优先** — 默认外部加载 JSON；2D 默认内联 ECharts 运行库以减少外网依赖
 4. **产物不可手改** — 一切改动回到生成器
 
 

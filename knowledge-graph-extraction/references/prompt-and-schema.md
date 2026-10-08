@@ -63,6 +63,7 @@ Agent 按以下模板，基于文档的**文档类型 × 学段 × 内容**提�
 - 关系 `text` 必填，`label` 缺省为 `RELATED_TO`；
 - 关系端点可引用实体数组中的 `text` 或 `id`（字符串），也可直接内嵌对象；
 - **`description` 必须逐字摘录原文**（见下"描述字段"）。
+- `attributes` 中若提供 `source-line`，其 `text` 必须为 `文件名#L行号`，如 `8753330031725715456_7989331510455501864_7989338958046234896.md#L67`；不带任何目录前缀，行号为原始文件中从 1 开始的行号，分块后也不重新计数。无法确认行号时不编造；多处证据使用多个属性项。
 
 ### 文档中的导读语与“知识链接”处理
 
@@ -155,9 +156,19 @@ Agent 按以下模板，基于文档的**文档类型 × 学段 × 内容**提�
 
 `sources`：来源 chunk 数组（文件级为 `文件路径`，分块后为 `文件路径#partN`）。跨块合并取并集；增量删除时按 `sources` 前缀匹配定位，共享关系不误删。
 
+`source-line` 属性与上述 `sources` 不同：只保留 `文件名#L行号`。规范化时移除 POSIX 或 Windows 目录前缀，拒绝缺失文件名、缺失行号或非正整数行号；不影响实体 ID、业务编码及其他来源字段。若多个目录存在同名文件，应结合来源清单与课时归属定位，不把目录重新写入 `source-line`。
+
 **描述字段**（实体 `description`）：**原文摘录**——抽取时必须从输入文本中逐字摘录"描述该实体"的原句（禁止总结/改写，无原句则空字符串）；跨块合并取最长非空摘录。可用于图谱渲染节点详情、GraphRAG 检索上下文。
 
+### 教材/课程图谱扩展
+
+上述示例是基础规范化结构。教材/课程默认继续运行 `enrich_graph_codes.py`，为每个实体补齐 `code`（如 `DXSXLJK-C01-S01-KP001`）、`book_code`、`chapter_no`、`section_no`、`knowledge_no`、`location_codes`，并增加 `metadata.entity_code_scheme`。其中 `location_codes` 每项含字符串 `textbook_id/unit_id/lesson_id` 与正整数 `chapter_no/section_no`。关系字段和实体主键 `id` 不变。
+
+这些字段在规范化完成后生成，不能只写在 raw 中期待规范化器保留。章节映射、编码顺序、跨章节主位置策略及增量保号规则见 `references/entity-codes.md`。
+
 ## 六、Postgres 落库（sync_graph_pg.py 自动建表）
+
+当前表结构仅持久化基础实体与关系字段；教材的顶层扩展字段与 `metadata.entity_code_scheme` 不会自动写入数据库，需要时另行扩展表结构与同步逻辑。
 
 ```sql
 CREATE TABLE graph_entities (

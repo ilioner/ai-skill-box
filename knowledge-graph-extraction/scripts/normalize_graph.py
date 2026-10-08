@@ -16,9 +16,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from source_meta import DEFAULT_META_KEYS, extract_source_meta, meta_to_attributes  # noqa: E402
 
 
 def normalize_entity_name(text: str) -> str:
@@ -58,12 +62,17 @@ def _normalize_entity(entity: Any, path: str, kb_id: str, id_length: int) -> dic
         if not isinstance(attribute, dict):
             continue
         attr_text = str(attribute.get("text") or "").strip()
+        attr_label = str(attribute.get("label") or "Attribute").strip() or "Attribute"
+        if attr_label == "source-line":
+            attr_text = attr_text.replace("\\", "/").rsplit("/", 1)[-1]
+            if not re.fullmatch(r"[^/#\\]+#L[1-9][0-9]*", attr_text):
+                raise ValueError(f"{path}.attributes.source-line 必须为 文件名#L正整数行号")
         if not attr_text:
             continue
         normalized_attributes.append(
             {
                 "text": attr_text,
-                "label": str(attribute.get("label") or "Attribute").strip() or "Attribute",
+                "label": attr_label,
             }
         )
 
@@ -80,12 +89,18 @@ def _normalize_entity(entity: Any, path: str, kb_id: str, id_length: int) -> dic
 
 
 def normalize_extraction_result(
-    result: dict[str, Any], kb_id: str, id_length: int = 32, source: str | None = None
+    result: dict[str, Any],
+    kb_id: str,
+    id_length: int = 32,
+    source: str | None = None,
+    extra_attributes: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """将抽取器产出标准化为可入库的图谱数据（实体/关系 + 确定性 ID）。
 
     source: 来源标识（文件路径 / chunk_id），会写入每条关系的 sources 数组，
             用于增量更新时按来源定位删除。None 表示不追踪来源。
+    extra_attributes: 按来源注入到本批每个实体的归属属性（如 unitId/lessonId），
+            渲染层的学习路径下钻依赖它。与实体自带 attributes 取并集。
     """
     if not isinstance(result, dict):
         raise ValueError("extraction_result 必须是对象")
@@ -101,6 +116,8 @@ def normalize_extraction_result(
 
     def add_entity(entity: Any, path: str) -> dict[str, Any]:
         normalized = _normalize_entity(entity, path, kb_id, id_length)
+        if extra_attributes:
+            _inject_attributes(normalized, extra_attributes)
         key = (normalized["normalized_name"], normalized["label"])
         existing = entity_by_key.get(key)
         if existing is None:
@@ -186,6 +203,16 @@ def _entity_refs(raw_entity: Any, entity: dict[str, Any]) -> list[str]:
     return refs
 
 
+def _inject_attributes(entity: dict[str, Any], attributes: list[dict[str, str]]) -> None:
+    """把来源归属属性并入实体 attributes（已存在同 (text,label) 则跳过）。"""
+    known = {(a["text"], a["label"]) for a in entity.get("attributes") or []}
+    for attribute in attributes:
+        key = (attribute["text"], attribute["label"])
+        if key not in known:
+            entity.setdefault("attributes", []).append(dict(attribute))
+            known.add(key)
+
+
 def _merge_attributes(target: dict[str, Any], source: dict[str, Any]) -> None:
     known = {(a["text"], a["label"]) for a in target.get("attributes") or []}
     for attribute in source.get("attributes") or []:
@@ -249,7 +276,27 @@ def main() -> int:
     parser.add_argument("--kb-id", default="default", help="知识库/命名空间 ID，用于生成确定性实体/关系 ID")
     parser.add_argument("--id-length", type=int, default=32, help="ID 截断长度（默认 32）")
     parser.add_argument("--source", default="", help="来源标识（写入每条关系的 sources 数组，增量更新按来源删除用）")
+    parser.add_argument("--source-root", default="",
+                        help="source 相对路径的解析基准目录（缺省按当前工作目录）")
+    parser.add_argument("--meta-keys", default=",".join(DEFAULT_META_KEYS),
+                        help="按来源回填进实体 attributes 的归属键（逗号分隔，默认 "
+                             + ",".join(DEFAULT_META_KEYS) + "）")
+    parser.add_argument("--no-source-attrs", action="store_true",
+                        help="关闭默认的来源归属回填（unitId/lessonId 等不写入实体 attributes）")
     args = parser.parse_args()
+
+    meta_keys = tuple(k.strip() for k in args.meta_keys.split(",") if k.strip())
+    source_root = args.source_root or None
+    stats = {"injected": 0}
+
+    def source_attrs(source: str | None) -> list[dict[str, str]]:
+        """默认行为：从来源文件 frontmatter/文件名提取归属元数据，回填进实体 attributes。"""
+        if args.no_source_attrs or not source or not meta_keys:
+            return []
+        attrs = meta_to_attributes(extract_source_meta(source, source_root, meta_keys), meta_keys)
+        if attrs:
+            stats["injected"] += 1
+        return attrs
 
     try:
         inputs = args.input or [None]
@@ -273,11 +320,13 @@ def main() -> int:
                             if not isinstance(extraction, dict):
                                 continue
                             source = str(record.get("source") or "").strip() or None
-                            graphs.append(normalize_extraction_result(extraction, args.kb_id, args.id_length, source))
+                            graphs.append(normalize_extraction_result(
+                                extraction, args.kb_id, args.id_length, source, source_attrs(source)))
                 else:
                     raw = load_input(inp)
                     source = args.source or Path(inp).name or None
-                    graphs.append(normalize_extraction_result(raw, args.kb_id, args.id_length, source))
+                    graphs.append(normalize_extraction_result(
+                        raw, args.kb_id, args.id_length, source, source_attrs(source)))
             merged = merge_graphs(graphs)
             normalized: dict[str, Any] = {
                 **merged,
@@ -294,7 +343,9 @@ def main() -> int:
                 print("error: 多个 --input 需要 --merge", file=sys.stderr)
                 return 1
             raw = load_input(inputs[0])
-            normalized = normalize_extraction_result(raw, args.kb_id, args.id_length, args.source or None)
+            single_source = args.source or (Path(inputs[0]).name if inputs[0] else None)
+            normalized = normalize_extraction_result(
+                raw, args.kb_id, args.id_length, args.source or None, source_attrs(single_source))
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -303,8 +354,9 @@ def main() -> int:
     if args.output:
         with open(args.output, "w", encoding="utf-8") as fh:
             fh.write(payload + "\n")
+        extra = "" if args.no_source_attrs else f", {stats['injected']} sources w/ {'/'.join(meta_keys)}"
         print(f"ok: {normalized['metadata']['entity_count']} entities, "
-              f"{normalized['metadata']['relation_count']} relations -> {args.output}", file=sys.stderr)
+              f"{normalized['metadata']['relation_count']} relations{extra} -> {args.output}", file=sys.stderr)
     else:
         print(payload)
     return 0

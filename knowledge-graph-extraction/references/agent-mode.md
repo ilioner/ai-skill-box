@@ -63,14 +63,25 @@ Agent 按 `references/prompt-and-schema.md` 的默认 prompt 与类型预设展�
 ```
 \# 多文件：JSONL（每行 source + extraction）一次性规范化并合并
 
-python3 scripts/normalize\_graph.py --merge --input raws.jsonl --kb-id kb1 --output graph.json
+python3 scripts/normalize\_graph.py --merge --input raws.jsonl --kb-id kb1 --output graph.base.json
 
 \# 或每份 raw 一个文件，逐个指定并合并
 
-python3 scripts/normalize\_graph.py --merge --input a.json --input b.json --kb-id kb1 --output graph.json
+python3 scripts/normalize\_graph.py --merge --input a.json --input b.json --kb-id kb1 --output graph.base.json
 ```
 
 输出：去重合并后的 `{entities, relations}`，含确定性 ID、sources、description。
+
+### 教材/课程的最终扩展字段
+
+上述规范化输出只是基础图谱。教材/课程将它保存为 `graph.base.json`，再按 `references/entity-codes.md` 核对教材业务编码与 `location_map.json`，执行：
+
+```bash
+python3 scripts/enrich_graph_codes.py --graph graph.base.json \
+    --locations location_map.json --book-code MYCOURSE --output graph.json
+```
+
+最终实体增加 `code/book_code/chapter_no/section_no/knowledge_no/location_codes`，元数据增加 `entity_code_scheme`。增量用旧 `graph.json` 作 `--existing` 基线，不能先覆盖旧文件；缺少目录定位时补齐依据，不由 Agent 编造序号。实体 `id` 与关系不变。此 JSON 扩展不代表数据库已保存这些字段。
 
 ## 四、落库（门禁 2：先问新增 / 全量，--apply 才写）
 

@@ -17,6 +17,11 @@ from __future__ import annotations
 import argparse, json, html
 from pathlib import Path
 
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent))
+from source_meta import resolve_path_data  # noqa: E402
+from render_runtime import build_runtime_boot
+
 
 def build_payload(graph: dict) -> dict:
     entities = graph.get("entities") or []
@@ -45,6 +50,7 @@ def build_payload(graph: dict) -> dict:
             "hashes": attrs_of(e, "data-hash"),
             "units": attrs_of(e, "unitId"), "lessons": attrs_of(e, "lessonId"),
             "textbook": (attrs_of(e, "textbookId") or [""])[0],
+            "code": e.get("code") or "",
         })
     links = []
     for r in relations:
@@ -205,7 +211,7 @@ HTML_TMPL = r"""<!DOCTYPE html>
 <div id="loading">✦ 正在生成知识图谱布局…</div>
 <header>
   <h1>__TITLE__</h1>
-  <div class="stat">实体 <b>__N_ENT__</b> · 关系 <b>__N_REL__</b> · 类型 <b>__N_CAT__</b></div>
+  <div class="stat">实体 <b id="stEnt">__N_ENT__</b> · 关系 <b id="stRel">__N_REL__</b> · 类型 <b id="stCat">__N_CAT__</b></div>
   <div class="ctl"><button id="btnReplay">▶ 重播生长</button></div>
 </header>
 <div id="search"><input id="q" placeholder="搜索节点→回车聚焦…" autocomplete="off"/><button id="reset">重置</button></div>
@@ -219,8 +225,10 @@ HTML_TMPL = r"""<!DOCTYPE html>
   <div id="detail" class="muted">拖拽旋转 · 滚轮缩放 · 点击节点：仅高亮该节点与其下一级子节点。左侧「学习路径导览」按单元/课时聚焦。点击空白处重置。</div>
 </div>
 <script>
-var DATA = __DATA__;
-var PATH = __PATH__;
+function hfBoot(DATA, PATH){
+var _se=document.getElementById('stEnt'); if(_se)_se.textContent=DATA.stats.entities;
+var _sr=document.getElementById('stRel'); if(_sr)_sr.textContent=DATA.stats.relations;
+var _sc=document.getElementById('stCat'); if(_sc)_sc.textContent=DATA.stats.categories;
 var unitName={}, lessonTitle={};
 PATH.forEach(function(u){ unitName[u.unitId]=u.name; (u.lessons||[]).forEach(function(l){ lessonTitle[l.lessonId]=l.title; }); });
 var palette = ['#60a5fa','#34d399','#fbbf24','#f87171','#22d3ee','#4ade80','#fb923c',
@@ -356,7 +364,8 @@ function showDetail(n){
         return nm? '<div>'+esc(nm)+'<br><span class="id">'+esc(id)+'</span></div>' : '<div class="id">'+esc(id)+'</div>'; }).join('') : '—';
     return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
   }
-  var meta='<div class="kv"><span class="k">教材 textbookId</span><span class="v"><span class="id">'+esc(n.textbook||'—')+'</span></span></div>'
+  var meta=(n.code? '<div class="kv"><span class="k">节点编码 code</span><span class="v"><code style="padding:2px 6px;background:#1e293b;border-radius:4px;color:#94a3b8;font-size:12px">'+esc(n.code)+'</code></span></div>' : '')
+    + '<div class="kv"><span class="k">教材 textbookId</span><span class="v"><span class="id">'+esc(n.textbook||'—')+'</span></span></div>'
     + kvNames('单元 unitId', n.units, unitName)
     + kvNames('课时 lessonId', n.lessons, lessonTitle);
   var d=document.getElementById('detail'); d.className='';
@@ -485,6 +494,8 @@ document.getElementById('q').addEventListener('keydown',function(e){
 });
 document.getElementById('reset').addEventListener('click',function(){ updateFocus(null); document.getElementById('q').value=''; });
 window.addEventListener('resize',function(){ Graph.width(window.innerWidth).height(window.innerHeight); });
+}
+__BOOT_INVOCATION__
 </script>
 <script>
 (function(){
@@ -532,28 +543,104 @@ window.addEventListener('resize',function(){ Graph.width(window.innerWidth).heig
 """
 
 
+RUNTIME_BOOT_JS = r"""(function(){
+  var GRAPH_URL=__GRAPH_URL__;
+  var PATH_URL=__PATH_URL__;
+  var PATH_REQUIRED=__PATH_REQUIRED__;
+  function buildPayload(graph){
+    var entities=graph.entities||[], relations=graph.relations||[];
+    var deg={};
+    relations.forEach(function(r){ deg[r.source_id]=(deg[r.source_id]||0)+1; deg[r.target_id]=(deg[r.target_id]||0)+1; });
+    var labels=[], catIndex={};
+    entities.forEach(function(e){ if(labels.indexOf(e.label)<0){ catIndex[e.label]=labels.length; labels.push(e.label); } });
+    var idOk={}; entities.forEach(function(e){ idOk[e.id]=true; });
+    function attrsOf(e,lab){ return (e.attributes||[]).filter(function(a){return a.label===lab;}).map(function(a){return a.text;}); }
+    var nodes=entities.map(function(e){
+      var d=deg[e.id]||0;
+      return { id:e.id, name:e.text, category:catIndex[e.label], label_text:e.label,
+               val:Math.max(1,d), desc:e.description||'',
+               hashes:attrsOf(e,'data-hash'), units:attrsOf(e,'unitId'),
+               lessons:attrsOf(e,'lessonId'), textbook:(attrsOf(e,'textbookId')[0]||''),
+               code:e.code||'' };
+    });
+    var links=[];
+    relations.forEach(function(r){
+      if(!idOk[r.source_id]||!idOk[r.target_id]) return;
+      var srcs=r.sources||[];
+      links.push({ source:r.source_id, target:r.target_id, rlabel:r.label||'', text:r.text||'',
+                   editorial:(srcs.length===1 && srcs[0]==='editorial_inference') });
+    });
+    return { nodes:nodes, links:links, categories:labels,
+             stats:{ entities:nodes.length, relations:links.length, categories:labels.length } };
+  }
+  function showLoadError(msg){
+    var el=document.getElementById('loading');
+    if(!el) return;
+    el.style.display='block'; el.style.maxWidth='min(520px,86vw)'; el.style.textAlign='left';
+    el.style.lineHeight='1.7'; el.style.color='#fca5a5';
+    el.style.whiteSpace='pre-line';
+    el.textContent='⚠️ 无法加载图谱数据\n'+msg+'\n\n请通过 HTTP 服务打开，不要直接双击 file://。\n在同时包含 HTML 和 JSON 的公共目录运行：\npython3 -m http.server 8000 --bind 127.0.0.1\n然后访问 http://127.0.0.1:8000/ 下的本页面。';
+  }
+  function loadJson(url, optional){
+    return fetch(url, {cache:'no-store'}).then(function(resp){
+      if(optional && resp.status===404) return [];
+      if(!resp.ok) throw new Error(url+'：HTTP '+resp.status);
+      return resp.json().catch(function(){ throw new Error(url+'：JSON 格式无效'); });
+    });
+  }
+  if(location.protocol==='file:'){ showLoadError('当前使用 file://，浏览器会阻止读取外部 JSON。'); return; }
+  Promise.all([loadJson(GRAPH_URL, false), loadJson(PATH_URL, !PATH_REQUIRED)])
+    .then(function(data){
+      var graph=data[0], path=data[1];
+      if(!graph || !Array.isArray(graph.entities) || !Array.isArray(graph.relations)) throw new Error('图谱必须包含 entities 和 relations 数组');
+      if(!graph.entities.length) throw new Error('图谱中没有可显示的实体');
+      if(!Array.isArray(path)) throw new Error('学习路径必须为数组');
+      hfBoot(buildPayload(graph), path);
+    })
+    .catch(function(err){ showLoadError(String(err&&err.message||err)); });
+})();
+"""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--graph", required=True)
     ap.add_argument("--output", required=True)
     ap.add_argument("--title", default="知识图谱 3D")
-    ap.add_argument("--path-json", default="", help="学习路径 JSON（[{unitId,name,lessons:[{lessonId,title}]}]）")
+    ap.add_argument("--path-json", default="", help="学习路径 JSON（[{unitId,name,lessons:[{lessonId,title}]}]）；"
+                                               "缺省自动探测 graph 同目录的 learning_path.json")
+    data_mode = ap.add_mutually_exclusive_group()
+    data_mode.add_argument("--runtime-load", dest="runtime_load", action="store_true", default=True,
+                           help="默认：运行时加载外部图谱和学习路径 JSON（需 HTTP 服务）")
+    data_mode.add_argument("--embed-data", dest="runtime_load", action="store_false",
+                           help="仅显式要求单文件交付时使用：内嵌图谱和学习路径数据")
     args = ap.parse_args()
-    graph = json.loads(Path(args.graph).read_text(encoding="utf-8"))
-    p = build_payload(graph)
-    path_data = []
-    if args.path_json and Path(args.path_json).exists():
-        path_data = json.loads(Path(args.path_json).read_text(encoding="utf-8"))
-    out = (HTML_TMPL
-           .replace("__TITLE__", html.escape(args.title))
-           .replace("__N_ENT__", str(p["stats"]["entities"]))
-           .replace("__N_REL__", str(p["stats"]["relations"]))
-           .replace("__N_CAT__", str(p["stats"]["categories"]))
-           .replace("__PATH__", json.dumps(path_data, ensure_ascii=False))
-           .replace("__DATA__", json.dumps(p, ensure_ascii=False)))
-    Path(args.output).write_text(out, encoding="utf-8")
-    print(f"ok: {p['stats']['entities']} nodes, {p['stats']['relations']} edges, "
-          f"{len(path_data)} units -> {args.output}")
+
+    if args.runtime_load:
+        # 运行时加载模式：输出 fetch + JS 端 buildPayload
+        boot = build_runtime_boot(RUNTIME_BOOT_JS, args.graph, args.output, args.path_json)
+        out = (HTML_TMPL
+               .replace("__TITLE__", html.escape(args.title))
+               .replace("__N_ENT__", "…")
+               .replace("__N_REL__", "…")
+               .replace("__N_CAT__", "…")
+               .replace("__BOOT_INVOCATION__", boot))
+        Path(args.output).write_text(out, encoding="utf-8")
+        print(f"ok: runtime-load mode -> {args.output} (需通过 http:// 打开)")
+    else:
+        path_data = resolve_path_data(args.path_json, args.graph)
+        graph = json.loads(Path(args.graph).read_text(encoding="utf-8"))
+        p = build_payload(graph)
+        boot = f"hfBoot({json.dumps(p, ensure_ascii=False)}, {json.dumps(path_data, ensure_ascii=False)});"
+        out = (HTML_TMPL
+               .replace("__TITLE__", html.escape(args.title))
+               .replace("__N_ENT__", str(p["stats"]["entities"]))
+               .replace("__N_REL__", str(p["stats"]["relations"]))
+               .replace("__N_CAT__", str(p["stats"]["categories"]))
+               .replace("__BOOT_INVOCATION__", boot))
+        Path(args.output).write_text(out, encoding="utf-8")
+        print(f"ok: {p['stats']['entities']} nodes, {p['stats']['relations']} edges, "
+              f"{len(path_data)} units -> {args.output}")
     return 0
 
 
